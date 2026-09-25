@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+.venv/
+venv/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Frontend / Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.oxlint_cache/
+
+# Environment variables — NEVER commit this
+.env
+.env.local
+.env.*.local
+
+# Streamlit
+.streamlit/
+
+# CSV Data Files (KVKK/GDPR: Real academic / student data must NEVER be committed)
+*.csv
+!*.example.csv
+!ogr.example.csv
+
+# Local SQLite databases & backups
+*.db
+*.db-shm
+*.db-wal
+*.backup.db
+*.sqlite
+*.sqlite3
+*.db.bak
+*.bak
+
+# Uploaded evidence files (retain directory structure via .gitkeep, exclude user uploads)
+uploads/*
+!uploads/.gitkeep
+
+# OS metadata & temporary files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+__MACOSX/
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+*.tmp
+*.temp
+*.swp
+*~
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Testing & Quality Assurance caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/

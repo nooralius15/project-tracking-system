@@ -1,0 +1,54 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Database files & backups
+*.db
+*.db-shm
+*.db-wal
+*.backup.db
+
+# Uploaded evidence and local user data
+uploads/
+data/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Testing & quality caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+
+# Git & CI/CD
+.git/
+.gitignore
+.github/
+
+# OS and archive artifacts
+__MACOSX/
+._*
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE files
+.idea/
+.vscode/
+
+# Documentation & notes
+PROJE_RAPORU.txt
+DEGISIKLIKLER.txt
+strings.txt

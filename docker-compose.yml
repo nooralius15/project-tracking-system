@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: capstone-project-tracker
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_PATH=/app/data/project_tracker.db
+      - UPLOADS_DIR=/app/uploads
+      - DEFAULT_ADVISOR=Dr. UFUK ASIL
+      - DEFAULT_PASSWORD=12345
+      - MIN_PASSWORD_LEN=6
+      - SESSION_TIMEOUT_MINUTES=30
+      - MAX_LOGIN_ATTEMPTS=5
+      - LOCKOUT_MINUTES=5
+      - COOKIE_SECRET=bpt-production-secret-change-me-jwt-signing
+      - DEFAULT_LANGUAGE=tr
+      - AI_PROVIDER=auto
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      - app_data:/app/data
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  app_data:
+    driver: local
+  uploads_data:
+    driver: local

@@ -1,0 +1,31 @@
+#;Öğrenci No;Öğrenci Adı;Proje Adı;Danışman Adı;Program
+1;210208001;Ali Yılmaz;Autonomous Drone Delivery System;Dr. UFUK ASIL;Eng
+2;210208002;Ayşe Demir;Autonomous Drone Delivery System;Dr. UFUK ASIL;Eng
+3;210208003;Can Kaya;Autonomous Drone Delivery System;Dr. UFUK ASIL;Eng
+4;210208004;Fatma Çelik;Healthcare AI Diagnostic Assistant;Dr. UFUK ASIL;Eng
+5;210208005;Mehmet Öztürk;Healthcare AI Diagnostic Assistant;Dr. UFUK ASIL;Eng
+6;210208006;Zeynep Şahin;Healthcare AI Diagnostic Assistant;Dr. UFUK ASIL;Eng
+7;210208007;Emre Yıldırım;Smart Campus IoT & Environmental Monitoring;Dr. Ahmet Demir;Eng
+8;210208008;Selin Arslan;Smart Campus IoT & Environmental Monitoring;Dr. Ahmet Demir;Eng
+9;210208009;Burak Aydın;Smart Campus IoT & Environmental Monitoring;Dr. Ahmet Demir;Eng
+10;210208010;Gamze Doğan;Blockchain-Based Academic Credential Verification;Doç. Dr. Ayşe Kaya;Eng
+11;210208011;Onur Kılıç;Blockchain-Based Academic Credential Verification;Doç. Dr. Ayşe Kaya;Eng
+12;210208012;Büşra Koç;Blockchain-Based Academic Credential Verification;Doç. Dr. Ayşe Kaya;Eng
+13;210208013;Kerem Şimşek;Cybersecurity Threat Intelligence Platform;Prof. Dr. Mehmet Öztürk;Eng
+14;210208014;Ebru Polat;Cybersecurity Threat Intelligence Platform;Prof. Dr. Mehmet Öztürk;Eng
+15;210208015;Tariq Al-Mansoor;Cybersecurity Threat Intelligence Platform;Prof. Dr. Mehmet Öztürk;Eng
+16;210208016;Hakan Güler;Smart Traffic Flow Optimization with Deep Learning;Dr. Zeynep Şahin;Tr
+17;210208017;Merve Kurt;Smart Traffic Flow Optimization with Deep Learning;Dr. Zeynep Şahin;Tr
+18;210208018;Oğuzhan Bulut;Smart Traffic Flow Optimization with Deep Learning;Dr. Zeynep Şahin;Tr
+19;210208019;Deniz Erdoğan;Privacy-Preserving Federated Learning Platform;Dr. UFUK ASIL;Eng
+20;210208020;Cemil Yıldız;Privacy-Preserving Federated Learning Platform;Dr. UFUK ASIL;Eng
+21;210208021;Leyla Acar;Privacy-Preserving Federated Learning Platform;Dr. UFUK ASIL;Eng
+22;210208022;Serhat Yavuz;Automated Code Review & Security Scanning Tool;Dr. Ahmet Demir;Eng
+23;210208023;Pınar Tekin;Automated Code Review & Security Scanning Tool;Dr. Ahmet Demir;Eng
+24;210208024;Sara Ahmed;Automated Code Review & Security Scanning Tool;Dr. Ahmet Demir;Eng
+25;210208025;Tolga Aktaş;Renewable Microgrid Energy Management System;Doç. Dr. Ayşe Kaya;Tr
+26;210208026;Ezgi Çetin;Renewable Microgrid Energy Management System;Doç. Dr. Ayşe Kaya;Tr
+27;210208027;Murat Özdemir;Renewable Microgrid Energy Management System;Doç. Dr. Ayşe Kaya;Tr
+28;210208028;Yasemin Kara;AI-Powered Speech-to-Text Clinical Documentation;Dr. Zeynep Şahin;Eng
+29;210208029;Kaan Erdem;AI-Powered Speech-to-Text Clinical Documentation;Dr. Zeynep Şahin;Eng
+30;210208030;Elena Rostova;AI-Powered Speech-to-Text Clinical Documentation;Dr. Zeynep Şahin;Eng

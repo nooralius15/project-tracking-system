@@ -2,30 +2,12 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import MilestoneProgress from '../components/MilestoneProgress';
+import MemberTable from '../components/MemberTable';
+import MetricCards from '../components/MetricCards';
+import ActiveTaskCard from '../components/ActiveTaskCard';
 import StatusBadge from '../components/StatusBadge';
-import {
-  Crown,
-  Plus,
-  MessageSquare,
-  Upload,
-  Calendar,
-  X,
-  AlertCircle,
-  Layers,
-  ExternalLink,
-  FileCheck,
-  User,
-  Filter,
-} from 'lucide-react';
-
-const MILESTONES = [
-  { key: 'M1', titleTr: 'M1: Literatür Taraması', titleEn: 'M1: Literature Review' },
-  { key: 'M2', titleTr: 'M2: Algoritma & Tasarım', titleEn: 'M2: Algorithm & Design' },
-  { key: 'M3', titleTr: 'M3: Uygulama & Geliştirme', titleEn: 'M3: Implementation' },
-  { key: 'M4', titleTr: 'M4: Test & Sonuç Değerlendirme', titleEn: 'M4: Testing & Results' },
-  { key: 'M5', titleTr: 'M5: Hata Düzeltme & Revizyon', titleEn: 'M5: Debugging & Revision' },
-  { key: 'M6', titleTr: 'M6: Final Rapor & Sunum', titleEn: 'M6: Final Report' },
-];
+import { Crown, Plus, MessageSquare, Upload, Calendar, X, Sparkles, UserCheck, Shield } from 'lucide-react';
 
 export default function LeaderDashboard({ project }) {
   const { lang, user } = useAuth();
@@ -34,8 +16,14 @@ export default function LeaderDashboard({ project }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Milestone Filter Tab ('ALL' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6')
-  const [selectedMilestone, setSelectedMilestone] = useState('ALL');
+  // Milestone Filter Tab (All, M1, M2, M3, M4, M5, M6)
+  const [activeMilestoneTab, setActiveMilestoneTab] = useState('ALL');
+
+  // Role Assignment Form
+  const [roleMemberNo, setRoleMemberNo] = useState('');
+  const [roleTitle, setRoleTitle] = useState('Yazılım');
+  const [roleResp, setRoleResp] = useState('');
+  const [roleSaving, setRoleSaving] = useState(false);
 
   // New Task Modal
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -46,20 +34,26 @@ export default function LeaderDashboard({ project }) {
   const [priority, setPriority] = useState('Orta');
   const [deadline, setDeadline] = useState('');
   const [evidenceReq, setEvidenceReq] = useState('Repo linki veya rapor');
-  const [taskSubmitting, setTaskSubmitting] = useState(false);
   const [taskError, setTaskError] = useState('');
+
+  // Selected Task for Update
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
 
   // Comment Modal
   const [activeTaskComments, setActiveTaskComments] = useState(null);
   const [commentsList, setCommentsList] = useState([]);
   const [newComment, setNewComment] = useState('');
-  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   // Evidence upload modal
   const [evidenceModalTask, setEvidenceModalTask] = useState(null);
   const [evidenceFile, setEvidenceFile] = useState(null);
   const [evidenceLink, setEvidenceLink] = useState('');
   const [uploading, setUploading] = useState(false);
+
+  // AI Group Analysis
+  const [aiReport, setAiReport] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiModelTag, setAiModelTag] = useState('');
 
   useEffect(() => {
     if (project?.name) {
@@ -75,36 +69,39 @@ export default function LeaderDashboard({ project }) {
         api.get(`/projects/${encodeURIComponent(project.name)}`),
       ]);
       setTasks(tRes.data);
-      const mems = pRes.data.members || [];
-      setMembers(mems);
-      if (mems.length > 0 && !assigneeNo) {
-        setAssigneeNo(mems[0].student_no);
+      setMembers(pRes.data.members || []);
+      if (pRes.data.members?.length > 0 && !roleMemberNo) {
+        setRoleMemberNo(pRes.data.members[0].student_no);
+        setAssigneeNo(pRes.data.members[0].student_no);
+      }
+      if (tRes.data.length > 0 && !selectedTaskId) {
+        setSelectedTaskId(tRes.data[0].id);
       }
     } catch (err) {
       console.error(err);
-      toast.error(lang === 'en' ? 'Failed to load project details.' : 'Proje verileri yüklenemedi.');
+      toast.error(lang === 'en' ? 'Failed to load project data.' : 'Proje verileri yüklenemedi.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOpenCreateModal = (presetMilestone = null) => {
-    if (presetMilestone && presetMilestone !== 'ALL') {
-      setMilestoneKey(presetMilestone);
-    } else if (selectedMilestone !== 'ALL') {
-      setMilestoneKey(selectedMilestone);
-    } else {
-      setMilestoneKey('M1');
+  const handleAssignRole = async (e) => {
+    e.preventDefault();
+    if (!roleMemberNo) return;
+    setRoleSaving(true);
+    try {
+      await api.post(`/projects/${encodeURIComponent(project.name)}/roles`, {
+        student_no: roleMemberNo,
+        role: roleTitle,
+        responsibility: roleResp,
+      });
+      toast.success(lang === 'en' ? 'Member role saved!' : 'Üye rolü başarıyla kaydedildi!');
+      loadProjectData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || (lang === 'en' ? 'Failed to assign role.' : 'Rol atanamadı.'));
+    } finally {
+      setRoleSaving(false);
     }
-    setTaskTitle('');
-    setTaskDesc('');
-    setTaskError('');
-    setPriority('Orta');
-    setDeadline('');
-    if (members.length > 0 && !assigneeNo) {
-      setAssigneeNo(members[0].student_no);
-    }
-    setShowTaskModal(true);
   };
 
   const handleCreateTask = async (e) => {
@@ -114,7 +111,6 @@ export default function LeaderDashboard({ project }) {
       setTaskError(lang === 'en' ? 'Task title is required.' : 'Görev başlığı gereklidir.');
       return;
     }
-    setTaskSubmitting(true);
     try {
       await api.post('/tasks', {
         project_name: project.name,
@@ -132,11 +128,7 @@ export default function LeaderDashboard({ project }) {
       setTaskDesc('');
       loadProjectData();
     } catch (err) {
-      const msg = err.response?.data?.detail || (lang === 'en' ? 'Failed to create task.' : 'Görev oluşturulamadı.');
-      setTaskError(msg);
-      toast.error(msg);
-    } finally {
-      setTaskSubmitting(false);
+      setTaskError(err.response?.data?.detail || (lang === 'en' ? 'Failed to create task.' : 'Görev oluşturulamadı.'));
     }
   };
 
@@ -144,12 +136,12 @@ export default function LeaderDashboard({ project }) {
     try {
       await api.patch(`/tasks/${taskId}`, {
         status: newStatus,
-        skip_milestone_check: true,
+        skip_milestone_check: true, // Leaders can override sequential check
       });
       toast.success(lang === 'en' ? 'Task status updated!' : 'Görev durumu güncellendi!');
       loadProjectData();
     } catch (err) {
-      toast.error(err.response?.data?.detail || (lang === 'en' ? 'Status update failed.' : 'Durum güncellenemedi.'));
+      toast.error(err.response?.data?.detail || (lang === 'en' ? 'Failed to update status.' : 'Durum güncellenemedi.'));
     }
   };
 
@@ -160,26 +152,22 @@ export default function LeaderDashboard({ project }) {
       setCommentsList(res.data);
     } catch (err) {
       console.error(err);
-      toast.error(lang === 'en' ? 'Failed to load comments.' : 'Yorumlar yüklenemedi.');
     }
   };
 
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim() || !activeTaskComments) return;
-    setCommentSubmitting(true);
     try {
       await api.post(`/tasks/${activeTaskComments.id}/comments`, {
         comment: newComment.trim(),
       });
-      toast.success(lang === 'en' ? 'Comment added!' : 'Yorum eklendi!');
+      toast.success(lang === 'en' ? 'Comment posted!' : 'Yorum eklendi!');
       setNewComment('');
       const res = await api.get(`/tasks/${activeTaskComments.id}/comments`);
       setCommentsList(res.data);
     } catch (err) {
-      toast.error(err.response?.data?.detail || (lang === 'en' ? 'Failed to add comment.' : 'Yorum eklenemedi.'));
-    } finally {
-      setCommentSubmitting(false);
+      toast.error(err.response?.data?.detail || (lang === 'en' ? 'Failed to post comment.' : 'Yorum eklenemedi.'));
     }
   };
 
@@ -195,14 +183,12 @@ export default function LeaderDashboard({ project }) {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       }
-      if (evidenceLink) {
-        await api.patch(`/tasks/${evidenceModalTask.id}`, {
-          status: 'DONE',
-          evidence_link: evidenceLink,
-          skip_milestone_check: true,
-        });
-      }
-      toast.success(lang === 'en' ? 'Evidence saved successfully!' : 'Kanıt başarıyla kaydedildi!');
+      await api.patch(`/tasks/${evidenceModalTask.id}`, {
+        status: 'DONE',
+        evidence_link: evidenceLink,
+        skip_milestone_check: true,
+      });
+      toast.success(lang === 'en' ? 'Evidence saved and task marked DONE!' : 'Kanıt kaydedildi ve görev tamamlandı!');
       setEvidenceModalTask(null);
       setEvidenceFile(null);
       setEvidenceLink('');
@@ -214,141 +200,224 @@ export default function LeaderDashboard({ project }) {
     }
   };
 
-  // Filter tasks based on selected milestone
-  const filteredTasks = tasks.filter((t) => {
-    if (selectedMilestone === 'ALL') return true;
-    return t.milestone_key === selectedMilestone;
-  });
+  const handleRunGroupAI = async () => {
+    setAiLoading(true);
+    try {
+      const promptContent =
+        lang === 'en'
+          ? `Please analyze our project ${project.name}'s overall task progress, completion percentages, potential bottlenecks, and goals for next week. Generate a guidance report for the team leader.`
+          : `Lütfen ${project.name} projemizin genel görev ilerlemesini, tamamlanma yüzdelerini, olası darboğazları ve gelecek haftaki hedeflerimizi analiz et. Grup lideri için rehberlik raporu oluştur.`;
+      const res = await api.post('/ai/chat', {
+        messages: [
+          {
+            role: 'user',
+            content: promptContent,
+          },
+        ],
+        project_name: project.name,
+      });
+      setAiReport(res.data.reply);
+      setAiModelTag(`${res.data.provider} (${res.data.model})`);
+      toast.success(lang === 'en' ? 'AI analysis complete!' : 'AI grup analizi tamamlandı!');
+    } catch (err) {
+      toast.error(lang === 'en' ? 'AI analysis failed.' : 'AI analizi yapılamadı.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
-  const completedCount = tasks.filter((t) => t.status === 'DONE').length;
-  const pct = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  // Metrics
+  const myTasks = tasks.filter((t) => String(t.assignee_student_no) === String(user?.user_id));
+  const myDone = myTasks.filter((t) => t.status === 'DONE').length;
+  const myPct = myTasks.length > 0 ? (myDone / myTasks.length) * 100 : 0;
+  const prjDone = tasks.filter((t) => t.status === 'DONE').length;
+  const prjPct = tasks.length > 0 ? (prjDone / tasks.length) * 100 : 0;
+  const overdueCount = tasks.filter(
+    (t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== 'DONE'
+  ).length;
+
+  // Selected task object
+  const activeTask = tasks.find((t) => t.id === selectedTaskId) || tasks[0];
+
+  // Filtered tasks by milestone tab
+  const filteredTasks =
+    activeMilestoneTab === 'ALL'
+      ? tasks
+      : tasks.filter((t) => t.milestone_key === activeMilestoneTab);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Hero Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 sm:p-8 rounded-2xl text-white shadow-md flex flex-col md:flex-row md:items-center md:justify-between gap-6 border border-slate-800">
+      {/* ── 1. Hero Banner matching Streamlit dm-hero-banner ──────────────────────── */}
+      <div className="bg-[#0a2342] text-white p-6 sm:p-8 rounded-2xl shadow-md flex flex-col md:flex-row md:items-center md:justify-between gap-6 border border-slate-800">
         <div className="flex items-start space-x-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-3xl shrink-0 shadow-inner">
+          <div className="w-14 h-14 rounded-2xl bg-amber-400/20 border-2 border-amber-400 flex items-center justify-center text-3xl shrink-0">
             👑
           </div>
           <div>
-            <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1 flex items-center space-x-1.5">
-              <span>{lang === 'en' ? 'Group Leader Panel' : 'Grup Lideri Yönetim Paneli'}</span>
+            <div className="text-[11px] font-bold text-amber-300 uppercase tracking-widest mb-1">
+              {lang === 'en' ? 'Group Leader Panel' : 'Grup Lider Paneli'}
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">{project?.name}</h1>
-            <div className="text-xs text-slate-300 mt-1 flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-white">👤 {user?.display_name}</span>
+            <h1 className="text-xl sm:text-2xl font-black text-white">{user?.display_name}</h1>
+            <div className="text-xs text-slate-300 mt-1 flex items-center space-x-2">
+              <span>📁 {project?.name}</span>
               <span>·</span>
-              <span className="text-slate-300">👨‍🏫 {project?.advisor_name || 'Danışman'}</span>
+              <span>👨‍🏫 {project?.advisor_name}</span>
             </div>
           </div>
         </div>
 
-        {/* Big Progress Gauge */}
-        <div className="flex items-center space-x-5 shrink-0 bg-white/10 backdrop-blur-md px-6 py-3.5 rounded-xl border border-white/10">
+        {/* 3 Metric Pills on Right (Proje %, Geciken, Üye) */}
+        <div className="flex items-center space-x-4 shrink-0 bg-white/10 px-6 py-3.5 rounded-2xl border border-white/10">
+          <div className="text-center px-2">
+            <div className="text-2xl font-black text-amber-300">%{Math.round(prjPct)}</div>
+            <div className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">
+              {lang === 'en' ? 'Project' : 'Proje'}
+            </div>
+          </div>
+          <div className="h-8 w-px bg-white/20" />
+          <div className="text-center px-2">
+            <div className={`text-2xl font-black ${overdueCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+              {overdueCount}
+            </div>
+            <div className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">
+              {lang === 'en' ? 'Overdue' : 'Geciken'}
+            </div>
+          </div>
+          <div className="h-8 w-px bg-white/20" />
+          <div className="text-center px-2">
+            <div className="text-2xl font-black text-blue-300">{members.length}</div>
+            <div className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">
+              {lang === 'en' ? 'Members' : 'Üye'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2. Overview Metrics Row (c1, c2, c3, c4 = st.columns(4)) ─────────────── */}
+      <MetricCards
+        projectTaskCount={tasks.length}
+        projectCompletionPct={prjPct}
+        myTaskCount={myTasks.length}
+        myCompletionPct={myPct}
+        lang={lang}
+      />
+
+      {/* ── 3. Milestone Progress Stepper (render_milestone_progress) ────────────── */}
+      <MilestoneProgress tasks={tasks} lang={lang} />
+
+      {/* ── 4. Team Members & Roles Table (render_member_table) ──────────────────── */}
+      <MemberTable members={members} leaderNo={user?.user_id} lang={lang} />
+
+      {/* ── 5. Role Assignment Form (upsert_role) ─────────────────────────────────── */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        <div className="flex items-center space-x-2">
+          <span className="text-base">🎭</span>
           <div>
-            <div className="text-xs text-slate-300 font-semibold">{lang === 'en' ? 'Completion' : 'İlerleme'}</div>
-            <div className="text-3xl font-extrabold text-amber-300">%{pct}</div>
-          </div>
-          <div className="text-right text-xs text-slate-300 border-l border-white/20 pl-4">
-            <div className="font-bold text-white text-base">{completedCount} / {tasks.length}</div>
-            <div className="text-[11px] text-slate-400">{lang === 'en' ? 'tasks done' : 'görev tamam'}</div>
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              {lang === 'en' ? 'Assign Team Roles & Responsibilities' : 'Rol & Görev Tanımı Atama'}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {lang === 'en'
+                ? 'Assign software, hardware, testing, or reporting roles to your teammates.'
+                : 'Takım üyelerine rol ve özel sorumluluk tanımları atayın.'}
+            </p>
           </div>
         </div>
+
+        <form onSubmit={handleAssignRole} className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
+          <div className="md:col-span-4">
+            <label className="block font-semibold text-slate-700 mb-1">{lang === 'en' ? 'Member' : 'Üye Seç'}</label>
+            <select
+              value={roleMemberNo}
+              onChange={(e) => setRoleMemberNo(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white"
+            >
+              {members.map((m) => (
+                <option key={m.student_no} value={m.student_no}>
+                  {m.student_name} ({m.student_no})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-3">
+            <label className="block font-semibold text-slate-700 mb-1">{lang === 'en' ? 'Role' : 'Rol'}</label>
+            <select
+              value={roleTitle}
+              onChange={(e) => setRoleTitle(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white"
+            >
+              <option value="Lider">{lang === 'en' ? 'Leader' : 'Lider'}</option>
+              <option value="Yazılım">{lang === 'en' ? 'Software' : 'Yazılım'}</option>
+              <option value="Donanım">{lang === 'en' ? 'Hardware' : 'Donanım'}</option>
+              <option value="Test">{lang === 'en' ? 'Testing' : 'Test'}</option>
+              <option value="Raporlama">{lang === 'en' ? 'Reporting' : 'Raporlama'}</option>
+              <option value="Üye">{lang === 'en' ? 'Member' : 'Üye'}</option>
+            </select>
+          </div>
+          <div className="md:col-span-3">
+            <label className="block font-semibold text-slate-700 mb-1">{lang === 'en' ? 'Responsibility' : 'Görev Tanımı'}</label>
+            <input
+              type="text"
+              placeholder={lang === 'en' ? 'e.g. Backend API & DB' : 'örn: Backend API & DB'}
+              value={roleResp}
+              onChange={(e) => setRoleResp(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg p-2.5"
+            />
+          </div>
+          <div className="md:col-span-2 flex items-end">
+            <button
+              type="submit"
+              disabled={roleSaving}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition"
+            >
+              {roleSaving ? '...' : lang === 'en' ? 'Save Role' : 'Rolü Kaydet'}
+            </button>
+          </div>
+        </form>
       </div>
 
-      {/* Team Roster Bar */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-        <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center justify-between">
-          <span className="flex items-center space-x-1.5">
-            <User className="w-4 h-4 text-blue-600" />
-            <span>{lang === 'en' ? 'Team Members' : 'Proje Ekip Üyeleri'}</span>
-          </span>
-          <span className="text-xs text-slate-400 font-normal">
-            {members.length} {lang === 'en' ? 'members' : 'öğrenci'}
-          </span>
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          {members.map((m) => (
-            <div key={m.student_no} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex items-center justify-between">
-              <div>
-                <div className="font-bold text-slate-900 flex items-center space-x-1">
-                  <span>{m.student_name}</span>
-                  {m.role === 'Lider' && <Crown className="w-3 h-3 text-amber-500" />}
-                </div>
-                <div className="text-[11px] text-slate-400">{m.student_no}</div>
-              </div>
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  m.role === 'Lider'
-                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                    : 'bg-blue-100 text-blue-700'
-                }`}
-              >
-                {m.role}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Task Section */}
+      {/* ── 6. Task Management: Table + Create Task ─────────────────────────────── */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center space-x-2">
+          <div>
             <h2 className="text-base font-bold text-slate-900 flex items-center space-x-2">
-              <Layers className="w-4 h-4 text-blue-600" />
-              <span>{lang === 'en' ? 'Project Tasks' : 'Proje Görevleri'}</span>
-              <span className="text-xs font-normal text-slate-400">({tasks.length})</span>
+              <span>🗂️</span>
+              <span>{lang === 'en' ? 'Task Tracking' : 'Görev Takibi'}</span>
+              <span className="text-xs text-slate-400 font-normal">({tasks.length})</span>
             </h2>
+            <p className="text-xs text-slate-500">
+              {lang === 'en' ? 'Manage, track and update milestone tasks.' : 'Tüm görevleri görüntüleyin ve durumlarını güncelleyin.'}
+            </p>
           </div>
+
           <button
-            onClick={() => handleOpenCreateModal()}
-            className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+            onClick={() => setShowTaskModal(true)}
+            className="inline-flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
-            <span>{lang === 'en' ? 'Create Task' : 'Yeni Görev Ekle'}</span>
+            <span>{lang === 'en' ? 'Create New Task' : 'Yeni Görev Oluştur'}</span>
           </button>
         </div>
 
-        {/* Milestone Filter Tabs */}
-        <div className="flex items-center overflow-x-auto pb-1 gap-1.5 scrollbar-thin">
-          <button
-            onClick={() => setSelectedMilestone('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center space-x-1.5 ${
-              selectedMilestone === 'ALL'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            <span>{lang === 'en' ? 'All Milestones' : 'Tüm Aşamalar'}</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                selectedMilestone === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {tasks.length}
-            </span>
-          </button>
-
-          {MILESTONES.map((m) => {
-            const count = tasks.filter((t) => t.milestone_key === m.key).length;
-            const isSelected = selectedMilestone === m.key;
+        {/* Milestone Filter Tabs (M1-M6) */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1">
+          {['ALL', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6'].map((tab) => {
+            const count = tab === 'ALL' ? tasks.length : tasks.filter((t) => t.milestone_key === tab).length;
+            const active = activeMilestoneTab === tab;
             return (
               <button
-                key={m.key}
-                onClick={() => setSelectedMilestone(m.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center space-x-1.5 ${
-                  isSelected
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                key={tab}
+                onClick={() => setActiveMilestoneTab(tab)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                  active
+                    ? 'bg-[#0a2342] text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                 }`}
-                title={lang === 'en' ? m.titleEn : m.titleTr}
               >
-                <span>{m.key}</span>
+                <span>{tab === 'ALL' ? (lang === 'en' ? 'All' : 'Tümü') : tab}</span>
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
                   {count}
@@ -358,217 +427,194 @@ export default function LeaderDashboard({ project }) {
           })}
         </div>
 
-        {/* Tasks Table / Empty States */}
-        {loading ? (
-          <div className="text-center py-16 text-slate-400 text-sm flex flex-col items-center space-y-2">
-            <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <span>{lang === 'en' ? 'Loading tasks...' : 'Görevler yükleniyor...'}</span>
-          </div>
-        ) : tasks.length === 0 ? (
-          /* Empty State: Zero Tasks */
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-4 shadow-xs">
-            <div className="w-14 h-14 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-center mx-auto text-blue-600">
-              <Layers className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                {lang === 'en' ? 'No tasks created yet' : 'Henüz görev oluşturulmadı'}
-              </h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                {lang === 'en'
-                  ? 'Plan your capstone milestones by breaking them down into tasks and assigning them to team members.'
-                  : 'Bitirme projenizi aşamalara bölerek ekip üyelerinize görev atayabilir ve ilerlemeyi takip edebilirsiniz.'}
-              </p>
-            </div>
-            <button
-              onClick={() => handleOpenCreateModal()}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{lang === 'en' ? 'Create First Task' : 'İlk Görevi Oluştur'}</span>
-            </button>
-          </div>
-        ) : filteredTasks.length === 0 ? (
-          /* Empty State: Filtered to specific milestone but no tasks */
-          <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3 shadow-xs">
-            <Filter className="w-10 h-10 text-slate-300 mx-auto" />
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">
-                {lang === 'en'
-                  ? `No tasks found for ${selectedMilestone}`
-                  : `${selectedMilestone} aşaması için henüz görev tanımlanmamış`}
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                {lang === 'en'
-                  ? 'Add a task for this milestone to keep progress moving forward.'
-                  : 'Bu milestone için görev oluşturarak süreci hızlandırabilirsiniz.'}
-              </p>
-            </div>
-            <div className="flex justify-center gap-2 pt-1">
-              <button
-                onClick={() => setSelectedMilestone('ALL')}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition"
-              >
-                {lang === 'en' ? 'Show All Tasks' : 'Tüm Görevleri Göster'}
-              </button>
-              <button
-                onClick={() => handleOpenCreateModal(selectedMilestone)}
-                className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{lang === 'en' ? `Add ${selectedMilestone} Task` : `${selectedMilestone}'a Görev Ekle`}</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900 text-white uppercase text-[11px] tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Milestone</th>
-                    <th className="py-3 px-4">Görev</th>
-                    <th className="py-3 px-4">Sorumlu</th>
-                    <th className="py-3 px-4">Durum</th>
-                    <th className="py-3 px-4">Deadline</th>
-                    <th className="py-3 px-4 text-right">İşlemler</th>
+        {/* Tasks Table */}
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#0a2342] text-white uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="py-3 px-4">Milestone</th>
+                  <th className="py-3 px-4">{lang === 'en' ? 'Task' : 'Görev'}</th>
+                  <th className="py-3 px-4">{lang === 'en' ? 'Assignee' : 'Sorumlu'}</th>
+                  <th className="py-3 px-4">{lang === 'en' ? 'Status' : 'Durum'}</th>
+                  <th className="py-3 px-4">{lang === 'en' ? 'Deadline' : 'Bitiş Tarihi'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'en' ? 'Actions' : 'İşlemler'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredTasks.map((t) => (
+                  <tr
+                    key={t.id}
+                    onClick={() => setSelectedTaskId(t.id)}
+                    className={`hover:bg-slate-50/80 transition cursor-pointer ${
+                      selectedTaskId === t.id ? 'bg-blue-50/50' : ''
+                    }`}
+                  >
+                    <td className="py-3 px-4 font-mono font-bold text-slate-500">{t.milestone_key}</td>
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-slate-900">{t.title}</div>
+                      {t.description && <div className="text-[11px] text-slate-400 line-clamp-1">{t.description}</div>}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-slate-700">{t.assignee_name || t.assignee_student_no}</td>
+                    <td className="py-3 px-4">
+                      <StatusBadge status={t.status} lang={lang} />
+                    </td>
+                    <td className="py-3 px-4 text-slate-500 font-mono">{t.deadline || '—'}</td>
+                    <td className="py-3 px-4 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setEvidenceModalTask(t)}
+                        className="p-1 text-slate-400 hover:text-blue-600 transition"
+                        title={lang === 'en' ? 'Attach Evidence' : 'Kanıt Ekle'}
+                      >
+                        <Upload className="w-3.5 h-3.5 inline" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenComments(t)}
+                        className="p-1 text-slate-400 hover:text-indigo-600 transition"
+                        title={lang === 'en' ? 'Comments' : 'Yorumlar'}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 inline" />
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredTasks.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-600">
-                        <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700 border border-slate-200">
-                          {t.milestone_key}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 max-w-xs">
-                        <div className="font-semibold text-slate-900">{t.title}</div>
-                        {t.description && (
-                          <div className="text-[11px] text-slate-400 line-clamp-1">{t.description}</div>
-                        )}
-                        {/* Evidence preview indicator */}
-                        {(t.evidence_link || t.evidence_file) && (
-                          <div className="mt-1 flex items-center space-x-1 text-[10px] text-emerald-600 font-semibold">
-                            <FileCheck className="w-3 h-3" />
-                            <span>{lang === 'en' ? 'Evidence provided' : 'Kanıt eklendi'}</span>
-                            {t.evidence_link && (
-                              <a
-                                href={t.evidence_link}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-blue-600 hover:underline inline-flex items-center ml-1"
-                              >
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-slate-700">
-                        {t.assignee_name || t.assignee_student_no}
-                      </td>
-                      <td className="py-3 px-4">
-                        <StatusBadge status={t.status} lang={lang} />
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
-                        {t.deadline ? (
-                          <span className="flex items-center space-x-1">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{t.deadline}</span>
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
-                        {/* Status select */}
-                        <select
-                          value={t.status}
-                          onChange={(e) => handleUpdateStatus(t.id, e.target.value)}
-                          className="text-[11px] border border-slate-300 rounded-md px-2 py-1 bg-white font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                        >
-                          <option value="TODO">TODO</option>
-                          <option value="DOING">DOING</option>
-                          <option value="DONE">DONE</option>
-                        </select>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
-                        {/* Evidence upload button */}
-                        <button
-                          onClick={() => setEvidenceModalTask(t)}
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition inline-flex items-center"
-                          title={lang === 'en' ? 'Attach Evidence' : 'Kanıt Ekle'}
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                        </button>
+      {/* ── 7. Active Task Inspector Card (render_active_task_card) ──────────────── */}
+      {activeTask && (
+        <div className="space-y-2">
+          <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-1.5">
+            <span>✏️</span>
+            <span>{lang === 'en' ? 'Selected Task Inspector' : 'Seçili Görev & Güncelleme'}</span>
+          </div>
+          <ActiveTaskCard
+            task={activeTask}
+            milestoneLabel={activeTask.milestone_key}
+            onUpdateStatus={handleUpdateStatus}
+            onAttachEvidence={() => setEvidenceModalTask(activeTask)}
+            lang={lang}
+          />
+        </div>
+      )}
 
-                        {/* Comments button */}
-                        <button
-                          onClick={() => handleOpenComments(t)}
-                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition inline-flex items-center"
-                          title={lang === 'en' ? 'Comments' : 'Yorumlar'}
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* ── 8. Member Progress Summary (member_progress) ─────────────────────────── */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
+          <span>📈</span>
+          <span>{lang === 'en' ? 'Member Workload & Progress Summary' : 'Üye İlerleme Özeti'}</span>
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-100 text-slate-700 uppercase text-[10px]">
+              <tr>
+                <th className="py-2.5 px-3">{lang === 'en' ? 'Member' : 'Üye'}</th>
+                <th className="py-2.5 px-3">{lang === 'en' ? 'Total Tasks' : 'Toplam Görev'}</th>
+                <th className="py-2.5 px-3">{lang === 'en' ? 'Completed' : 'Tamamlanan'}</th>
+                <th className="py-2.5 px-3">{lang === 'en' ? 'Completion %' : 'Tamamlanma %'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {members.map((m) => {
+                const memTasks = tasks.filter((t) => String(t.assignee_student_no) === String(m.student_no));
+                const memDone = memTasks.filter((t) => t.status === 'DONE').length;
+                const memPct = memTasks.length > 0 ? Math.round((memDone / memTasks.length) * 100) : 0;
+                return (
+                  <tr key={m.student_no} className="hover:bg-slate-50">
+                    <td className="py-2.5 px-3 font-semibold text-slate-900">{m.student_name}</td>
+                    <td className="py-2.5 px-3 font-mono">{memTasks.length}</td>
+                    <td className="py-2.5 px-3 font-mono text-emerald-600 font-bold">{memDone}</td>
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-24 bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${memPct}%` }} />
+                        </div>
+                        <span className="font-bold font-mono">%{memPct}</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── 9. AI Group Analysis (build_group_prompt) ────────────────────────────── */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+              <Sparkles className="w-5 h-5 text-amber-500" />
             </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                {lang === 'en' ? 'AI Group Analysis' : '🤖 AI Grup Analizi'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {lang === 'en'
+                  ? 'The AI Assistant evaluates group task data, bottlenecks, and velocity.'
+                  : 'Yapay zeka grubunuzun ilerlemesini, görev yükünü ve risklerini analiz eder.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleRunGroupAI}
+            disabled={aiLoading}
+            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer self-start sm:self-auto"
+          >
+            {aiLoading
+              ? (lang === 'en' ? 'Analyzing...' : 'Analiz Yapılıyor...')
+              : (lang === 'en' ? '✨ Analyze My Group' : '✨ Grubumu Analiz Et')}
+          </button>
+        </div>
+
+        {aiReport && (
+          <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+            {aiReport}
+            {aiModelTag && <div className="mt-2 text-[10px] text-slate-400 font-mono">Engine: {aiModelTag}</div>}
           </div>
         )}
       </div>
 
-      {/* Improved Create Task Modal */}
+      {/* Task Creation Modal */}
       {showTaskModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-                  <Plus className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">
-                    {lang === 'en' ? 'Create Milestone Task' : 'Yeni Milestone Görevi'}
-                  </h3>
-                  <div className="text-[11px] text-slate-400">
-                    {lang === 'en' ? 'Assign task to team member' : 'Ekip üyesine görev tanımlayın'}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowTaskModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
+              <h3 className="font-bold text-sm text-slate-900">
+                {lang === 'en' ? 'Create New Milestone Task' : 'Yeni Milestone Görevi Oluştur'}
+              </h3>
+              <button onClick={() => setShowTaskModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {taskError && (
-              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{taskError}</span>
+              <div className="mb-4 p-2.5 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs">
+                {taskError}
               </div>
             )}
 
-            <form onSubmit={handleCreateTask} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handleCreateTask} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    {lang === 'en' ? 'Milestone' : 'Milestone Aşaması'}
-                  </label>
+                  <label className="block font-semibold text-slate-700 mb-1">Milestone</label>
                   <select
                     value={milestoneKey}
                     onChange={(e) => setMilestoneKey(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-slate-300 rounded-lg p-2"
                   >
-                    {MILESTONES.map((m) => (
-                      <option key={m.key} value={m.key}>
-                        {lang === 'en' ? m.titleEn : m.titleTr}
-                      </option>
-                    ))}
+                    <option value="M1">{lang === 'en' ? 'M1: Literature Review' : 'M1: Literatür taraması'}</option>
+                    <option value="M2">{lang === 'en' ? 'M2: Algorithm & Architecture' : 'M2: Algoritma ve uygulama planı'}</option>
+                    <option value="M3">{lang === 'en' ? 'M3: MVP Bootstrapping' : 'M3: Uygulamayı boot etme'}</option>
+                    <option value="M4">{lang === 'en' ? 'M4: Testing & Evaluation' : 'M4: Deneme ve sonuç değerlendirme'}</option>
+                    <option value="M5">{lang === 'en' ? 'M5: Bug Fixes & Refinements' : 'M5: Hata düzeltme ve revizyon'}</option>
+                    <option value="M6">{lang === 'en' ? 'M6: Documentation & Final Report' : 'M6: Proje yazımı ve final rapor'}</option>
                   </select>
                 </div>
                 <div>
@@ -578,12 +624,11 @@ export default function LeaderDashboard({ project }) {
                   <select
                     value={assigneeNo}
                     onChange={(e) => setAssigneeNo(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
+                    className="w-full border border-slate-300 rounded-lg p-2"
                   >
                     {members.map((m) => (
                       <option key={m.student_no} value={m.student_no}>
-                        {m.student_name} ({m.student_no})
+                        {m.student_name}
                       </option>
                     ))}
                   </select>
@@ -598,52 +643,40 @@ export default function LeaderDashboard({ project }) {
                   type="text"
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
-                  placeholder={lang === 'en' ? 'e.g. Setup database schema & migrations' : 'örn: Veritabanı şeması ve migrasyonların yazılması'}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={lang === 'en' ? 'e.g. Frontend API integration' : 'örn: Frontend API entegrasyonu'}
+                  className="w-full border border-slate-300 rounded-lg p-2"
                   required
                 />
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  {lang === 'en' ? 'Description & Requirements' : 'Açıklama & Beklentiler'}
+                  {lang === 'en' ? 'Description' : 'Açıklama'}
                 </label>
                 <textarea
                   rows={2}
                   value={taskDesc}
                   onChange={(e) => setTaskDesc(e.target.value)}
-                  placeholder={lang === 'en' ? 'Detailed requirements, expectations, and acceptance criteria...' : 'Görevle ilgili teknik detaylar ve kabul kriterleri...'}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={lang === 'en' ? 'Details, objectives...' : 'Detaylar, hedefler...'}
+                  className="w-full border border-slate-300 rounded-lg p-2"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    {lang === 'en' ? 'Priority' : 'Öncelik Seviyesi'}
+                    {lang === 'en' ? 'Priority' : 'Öncelik'}
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {['Düşük', 'Orta', 'Yüksek'].map((p) => (
-                      <button
-                        type="button"
-                        key={p}
-                        onClick={() => setPriority(p)}
-                        className={`py-1.5 text-xs rounded-lg font-bold transition border cursor-pointer ${
-                          priority === p
-                            ? p === 'Yüksek'
-                              ? 'bg-rose-600 text-white border-rose-600'
-                              : p === 'Orta'
-                              ? 'bg-amber-500 text-slate-950 border-amber-500'
-                              : 'bg-emerald-600 text-white border-emerald-600'
-                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg p-2"
+                  >
+                    <option value="Düşük">{lang === 'en' ? 'Low' : 'Düşük'}</option>
+                    <option value="Orta">{lang === 'en' ? 'Medium' : 'Orta'}</option>
+                    <option value="Yüksek">{lang === 'en' ? 'High' : 'Yüksek'}</option>
+                  </select>
                 </div>
-
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     {lang === 'en' ? 'Deadline' : 'Bitiş Tarihi'}
@@ -652,40 +685,24 @@ export default function LeaderDashboard({ project }) {
                     type="date"
                     value={deadline}
                     onChange={(e) => setDeadline(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 bg-slate-50 focus:bg-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-slate-300 rounded-lg p-2"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  {lang === 'en' ? 'Evidence Required' : 'Beklenen Kanıt'}
-                </label>
-                <input
-                  type="text"
-                  value={evidenceReq}
-                  onChange={(e) => setEvidenceReq(e.target.value)}
-                  placeholder={lang === 'en' ? 'e.g. GitHub PR, test report, or presentation PDF' : 'örn: GitHub PR linki, test raporu veya sunum dosyası'}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
               </div>
 
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowTaskModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 font-semibold hover:bg-slate-50 transition cursor-pointer"
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 font-semibold hover:bg-slate-50"
                 >
                   {lang === 'en' ? 'Cancel' : 'İptal'}
                 </button>
                 <button
                   type="submit"
-                  disabled={taskSubmitting}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg transition cursor-pointer"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition"
                 >
-                  {taskSubmitting
-                    ? (lang === 'en' ? 'Creating...' : 'Oluşturuluyor...')
-                    : (lang === 'en' ? 'Create Task' : 'Görevi Oluştur')}
+                  {lang === 'en' ? 'Create Task' : 'Görevi Oluştur'}
                 </button>
               </div>
             </form>
@@ -695,19 +712,16 @@ export default function LeaderDashboard({ project }) {
 
       {/* Task Comments Slide-over */}
       {activeTaskComments && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50 animate-in fade-in">
-          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right">
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex justify-end z-50">
+          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-sm">💬 {lang === 'en' ? 'Task Discussion' : 'Görev Yorumları'}</h3>
-                <div className="text-[11px] text-slate-400">
-                  #{activeTaskComments.id} - {activeTaskComments.title}
-                </div>
+                <h3 className="font-bold text-sm">
+                  💬 {lang === 'en' ? 'Task Comments' : 'Görev Yorumları'}
+                </h3>
+                <div className="text-[11px] text-slate-400">#{activeTaskComments.id} - {activeTaskComments.title}</div>
               </div>
-              <button
-                onClick={() => setActiveTaskComments(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
-              >
+              <button onClick={() => setActiveTaskComments(null)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -715,18 +729,16 @@ export default function LeaderDashboard({ project }) {
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
               {commentsList.length === 0 && (
                 <div className="text-center py-12 text-slate-400 text-xs">
-                  {lang === 'en' ? 'No comments yet. Start the conversation!' : 'Henüz yorum yapılmadı. İlk yorumu siz yazın!'}
+                  {lang === 'en' ? 'No comments yet.' : 'Henüz yorum yapılmadı.'}
                 </div>
               )}
               {commentsList.map((c) => (
-                <div key={c.id} className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-1 shadow-xs">
+                <div key={c.id} className="p-3 bg-white border border-slate-200 rounded-lg text-xs space-y-1">
                   <div className="flex justify-between text-[11px] text-slate-400">
-                    <span className="font-bold text-slate-800">
-                      {c.author_name || c.author_id} ({c.author_role})
-                    </span>
+                    <span className="font-bold text-slate-800">{c.author_name || c.author_id} ({c.author_role})</span>
                     <span>{c.created_at}</span>
                   </div>
-                  <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{c.comment}</p>
+                  <p className="text-slate-700 leading-relaxed">{c.comment}</p>
                 </div>
               ))}
             </div>
@@ -736,15 +748,11 @@ export default function LeaderDashboard({ project }) {
                 type="text"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder={lang === 'en' ? 'Type your comment...' : 'Yorumunuzu yazın...'}
-                className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder={lang === 'en' ? 'Write a comment...' : 'Yorumunuzu yazın...'}
+                className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none"
               />
-              <button
-                type="submit"
-                disabled={commentSubmitting || !newComment.trim()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg text-xs transition cursor-pointer"
-              >
-                {commentSubmitting ? '...' : (lang === 'en' ? 'Send' : 'Gönder')}
+              <button type="submit" className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs">
+                {lang === 'en' ? 'Send' : 'Gönder'}
               </button>
             </form>
           </div>
@@ -753,63 +761,55 @@ export default function LeaderDashboard({ project }) {
 
       {/* Evidence Upload Modal */}
       {evidenceModalTask && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div>
-                <h3 className="font-bold text-sm text-slate-900">
-                  {lang === 'en' ? 'Attach Evidence & Artifacts' : '📎 Kanıt Dosyası veya Linki Ekle'}
-                </h3>
-                <div className="text-[11px] text-slate-400">
-                  #{evidenceModalTask.id} - {evidenceModalTask.title}
-                </div>
-              </div>
-              <button
-                onClick={() => setEvidenceModalTask(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
+              <h3 className="font-bold text-sm text-slate-900">
+                📎 {lang === 'en' ? 'Attach Evidence File or Link' : 'Kanıt Dosyası veya Linki Ekle'}
+              </h3>
+              <button onClick={() => setEvidenceModalTask(null)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleUploadEvidence} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  {lang === 'en' ? 'Repository or Document URL' : 'Repo / Doküman / PR Linki'}
+                  {lang === 'en' ? 'Repo / Document Link' : 'Repo / Doküman Linki'}
                 </label>
                 <input
                   type="url"
                   placeholder="https://github.com/..."
                   value={evidenceLink}
                   onChange={(e) => setEvidenceLink(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 rounded-lg p-2"
                 />
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  {lang === 'en' ? 'Upload File (PDF, DOCX, ZIP, PNG)' : 'Dosya Yükle (PDF, PNG, ZIP vb.)'}
+                  {lang === 'en' ? 'Upload File (PDF, PNG, ZIP, etc.)' : 'Dosya Yükle (PDF, PNG, ZIP vb.)'}
                 </label>
                 <input
                   type="file"
                   onChange={(e) => setEvidenceFile(e.target.files[0])}
-                  className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 cursor-pointer"
+                  className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700"
                 />
               </div>
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setEvidenceModalTask(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition"
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600"
                 >
                   {lang === 'en' ? 'Cancel' : 'İptal'}
                 </button>
                 <button
                   type="submit"
                   disabled={uploading}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-lg transition cursor-pointer"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition"
                 >
                   {uploading
                     ? (lang === 'en' ? 'Uploading...' : 'Yükleniyor...')
-                    : (lang === 'en' ? 'Save Evidence' : 'Kaydet')}
+                    : (lang === 'en' ? 'Save' : 'Kaydet')}
                 </button>
               </div>
             </form>

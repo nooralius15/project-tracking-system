@@ -100,7 +100,7 @@ TRANSLATION_FILE = Path(__file__).with_name("translations_tr_en.json")
 # ── AI / LLM Configuration ───────────────────────────────────────────────────
 AI_PROVIDER: str = _env("AI_PROVIDER", "auto").lower()
 GEMINI_API_KEY: str = _env("GEMINI_API_KEY", "") or _env("GOOGLE_API_KEY", "")
-GEMINI_MODEL: str = _env("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL: str = _env("GEMINI_MODEL", "gemini-3.8-flash")
 OLLAMA_BASE_URL: str = _env("OLLAMA_BASE_URL", _env("OLLAMA_BASE", "http://localhost:11434"))
 OLLAMA_MODEL: str = _env("OLLAMA_MODEL", _env("DEFAULT_MODEL", "llama3.2:3b"))
 GROQ_API_KEY: str = _env("GROQ_API_KEY", "")

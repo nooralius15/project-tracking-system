@@ -5,8 +5,10 @@ Serves the REST API and the compiled React frontend.
 """
 from __future__ import annotations
 
-import os
+import datetime
 from pathlib import Path
+import platform
+import shutil
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,6 +24,8 @@ from api.weekly import router as weekly_router
 from constants import DB_PATH, UPLOADS_DIR
 from db import get_conn
 from models import ensure_database_synced
+
+SERVER_START_TIME = datetime.datetime.now(datetime.timezone.utc)
 
 
 @asynccontextmanager
@@ -67,10 +71,59 @@ app.include_router(ai_router, prefix="/api")
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
-
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "app": "Bitirme Projesi Takip API", "version": "2.0.0"}
+
+
+@app.get("/api/health/system")
+def system_health_telemetry():
+    """IT Operations Telemetry: Real-time database metrics, disk storage, and uptime."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    uptime_sec = int((now - SERVER_START_TIME).total_seconds())
+
+    db_file = Path(DB_PATH)
+    db_size_kb = round(db_file.stat().st_size / 1024, 2) if db_file.exists() else 0
+
+    conn = get_conn(DB_PATH)
+    try:
+        integrity_row = conn.execute("PRAGMA integrity_check").fetchone()
+        integrity = integrity_row[0] if integrity_row else "unknown"
+    except Exception:
+        integrity = "unknown"
+
+    students_count = conn.execute("SELECT count(*) FROM students").fetchone()[0]
+    projects_count = conn.execute("SELECT count(DISTINCT project_name) FROM students").fetchone()[0]
+    tasks_count = conn.execute("SELECT count(*) FROM tasks").fetchone()[0]
+
+    disk = shutil.disk_usage(str(db_file.parent.resolve()))
+    disk_free_gb = round(disk.free / (1024**3), 2)
+    disk_total_gb = round(disk.total / (1024**3), 2)
+
+    return {
+        "status": "healthy",
+        "app": "Bitirme Projesi Takip API",
+        "version": "2.0.0",
+        "uptime_seconds": uptime_sec,
+        "runtime": {
+            "python": platform.python_version(),
+            "os": platform.system(),
+            "platform": platform.platform(),
+        },
+        "database": {
+            "path": str(DB_PATH),
+            "size_kb": db_size_kb,
+            "integrity": integrity,
+            "students_count": students_count,
+            "projects_count": projects_count,
+            "tasks_count": tasks_count,
+        },
+        "storage": {
+            "disk_free_gb": disk_free_gb,
+            "disk_total_gb": disk_total_gb,
+            "uploads_dir": str(UPLOADS_DIR),
+        },
+    }
 
 
 # ── Mount Frontend (if built) ─────────────────────────────────────────────────

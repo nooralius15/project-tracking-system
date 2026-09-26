@@ -39,6 +39,8 @@ frontend/.oxlint_cache/
 *.sqlite3
 *.db.bak
 *.bak
+backups/*
+!backups/.gitkeep
 
 # Uploaded evidence files (retain directory structure via .gitkeep, exclude user uploads)
 uploads/*

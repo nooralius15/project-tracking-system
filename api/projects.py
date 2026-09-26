@@ -4,11 +4,14 @@ Project management endpoints: project lists, metrics, member rosters, leader & r
 """
 from __future__ import annotations
 
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+import io
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+import pandas as pd
 
 from api.deps import get_current_user, get_db, require_role
 from api.schemas import (
+    AddStudentRequest,
     AssignLeaderRequest,
     AssignRoleRequest,
     ProjectDetail,
@@ -17,12 +20,20 @@ from api.schemas import (
 )
 from db import fetch_df
 from models import (
+    add_single_student,
     build_project_metrics,
+    completion_percent,
+    ensure_database_synced,
+    fetch_feedbacks,
+    fetch_tasks,
+    fetch_weekly_updates_for_project,
     get_leader,
     get_roster_from_db,
     get_student_memberships,
+    load_roster_from_upload,
     set_leader,
     upsert_role,
+    upsert_students,
 )
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -79,6 +90,187 @@ def list_projects(current_user: dict = Depends(get_current_user), conn=Depends(g
             )
         )
     return summaries
+
+
+@router.get("/roster/students-search")
+def search_students(
+    q: str = "",
+    current_user: dict = Depends(get_current_user),
+    conn=Depends(get_db),
+):
+    """Search students by name or student number across advisor's projects (or all if admin)."""
+    user_id = current_user["user_id"]
+    role = current_user["role"]
+    is_admin = current_user.get("is_admin", False)
+
+    if role == "advisor":
+        roster = get_roster_from_db(conn, None if is_admin else user_id)
+    else:
+        memberships = get_student_memberships(conn, user_id)
+        if memberships.empty:
+            return []
+        project_names = set(memberships["project_name"].tolist())
+        all_roster = get_roster_from_db(conn)
+        roster = all_roster[all_roster["project_name"].isin(project_names)]
+
+    if roster.empty or not q.strip():
+        return []
+
+    q_clean = q.strip().lower()
+    matches = roster[
+        roster["student_name"].astype(str).str.lower().str.contains(q_clean, na=False)
+        | roster["student_no"].astype(str).str.strip().str.contains(q_clean, na=False)
+    ]
+    if matches.empty:
+        return []
+
+    results = []
+    for _, stu_row in matches.iterrows():
+        sno = str(stu_row["student_no"]).strip()
+        sname = str(stu_row["student_name"]).strip()
+        pname = str(stu_row["project_name"]).strip()
+        prog = str(stu_row.get("program") or "")
+        adv = str(stu_row.get("advisor_name") or "")
+
+        leader_sno = get_leader(conn, pname)
+        is_stu_leader = (leader_sno == sno)
+
+        role_df = fetch_df(conn, "SELECT student_no, role, responsibility FROM member_roles WHERE project_name = ?", (pname,))
+        stu_role_row = role_df[role_df["student_no"].astype(str) == sno]
+        stu_role = str(stu_role_row.iloc[0]["role"]) if not stu_role_row.empty else ("Lider" if is_stu_leader else "Üye")
+        stu_resp = str(stu_role_row.iloc[0]["responsibility"]) if not stu_role_row.empty else "—"
+
+        tasks_df = fetch_tasks(conn, pname)
+        my_tasks_df = tasks_df[tasks_df["assignee_student_no"].astype(str) == sno] if not tasks_df.empty else pd.DataFrame()
+
+        my_tasks = []
+        if not my_tasks_df.empty:
+            for _, t in my_tasks_df.iterrows():
+                my_tasks.append({
+                    "id": int(t["id"]),
+                    "milestone_key": str(t["milestone_key"]),
+                    "title": str(t["title"]),
+                    "status": str(t["status"]),
+                    "priority": str(t["priority"]),
+                    "deadline": str(t.get("deadline") or ""),
+                    "evidence_link": str(t.get("evidence_link") or ""),
+                    "evidence_file": str(t.get("evidence_file") or ""),
+                })
+
+        team = roster[roster["project_name"] == pname].sort_values("row_no")
+        team_members = []
+        for _, tm in team.iterrows():
+            tm_sno = str(tm["student_no"])
+            tm_role_row = role_df[role_df["student_no"].astype(str) == tm_sno]
+            tm_role = str(tm_role_row.iloc[0]["role"]) if not tm_role_row.empty else ("Lider" if tm_sno == leader_sno else "Üye")
+            tm_resp = str(tm_role_row.iloc[0]["responsibility"]) if not tm_role_row.empty else ""
+            team_members.append({
+                "student_no": tm_sno,
+                "student_name": str(tm["student_name"]),
+                "role": tm_role,
+                "responsibility": tm_resp,
+                "program": str(tm.get("program") or ""),
+            })
+
+        weekly_df = fetch_weekly_updates_for_project(conn, pname, sno)
+        weekly_updates = []
+        if not weekly_df.empty:
+            for _, w in weekly_df.iterrows():
+                weekly_updates.append({
+                    "week_start": str(w["week_start"]),
+                    "completed": str(w.get("completed") or ""),
+                    "blockers": str(w.get("blockers") or ""),
+                    "next_step": str(w.get("next_step") or ""),
+                    "evidence_link": str(w.get("evidence_link") or ""),
+                    "created_at": str(w.get("created_at") or ""),
+                })
+
+        fb_df = fetch_feedbacks(conn, pname)
+        feedbacks = []
+        if not fb_df.empty:
+            for _, fb in fb_df.iterrows():
+                feedbacks.append({
+                    "id": int(fb["id"]),
+                    "project_name": str(fb["project_name"]),
+                    "advisor_name": str(fb["advisor_name"]),
+                    "feedback": str(fb["feedback"]),
+                    "action_item": str(fb.get("action_item") or ""),
+                    "revision_required": bool(fb.get("revision_required", 0)),
+                    "created_at": str(fb.get("created_at") or ""),
+                })
+
+        results.append({
+            "student_no": sno,
+            "student_name": sname,
+            "project_name": pname,
+            "program": prog,
+            "advisor_name": adv,
+            "role": stu_role,
+            "responsibility": stu_resp,
+            "is_leader": is_stu_leader,
+            "assigned_tasks_count": len(my_tasks_df),
+            "completed_tasks_count": int((my_tasks_df["status"] == "DONE").sum()) if not my_tasks_df.empty else 0,
+            "completion_pct": completion_percent(my_tasks_df) if not my_tasks_df.empty else 0.0,
+            "tasks": my_tasks,
+            "team_members": team_members,
+            "weekly_updates": weekly_updates,
+            "feedbacks": feedbacks,
+        })
+    return results
+
+
+@router.post("/students")
+def add_student(
+    payload: AddStudentRequest,
+    current_user: dict = Depends(require_role(["advisor"])),
+    conn=Depends(get_db),
+):
+    """Add a new student to a project (Advisor only)."""
+    sno = payload.student_no.strip()
+    sname = payload.student_name.strip()
+    pname = payload.project_name.strip()
+    prog = (payload.program or "").strip()
+    advisor_name = current_user["user_id"]
+
+    if not sno or not sname or not pname:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Öğrenci No, Adı ve Proje Adı zorunludur.")
+
+    existing_check = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM students WHERE student_no = ? AND project_name = ?",
+        (sno, pname),
+    ).fetchone()["cnt"]
+    if int(existing_check) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{sno} numaralı öğrenci zaten '{pname}' projesinde kayıtlı.",
+        )
+
+    add_single_student(conn, sno, sname, pname, advisor_name, prog)
+    ensure_database_synced(conn, force=True)
+    return {"message": f"{sname} ({sno}) başarıyla '{pname}' projesine eklendi."}
+
+
+@router.post("/roster/upload-csv")
+async def upload_roster_csv(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(require_role(["advisor"])),
+    conn=Depends(get_db),
+):
+    """Upload or update student roster via CSV file (Advisor only)."""
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Yalnızca .csv dosyaları yüklenebilir.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Yüklenen dosya boş.")
+
+    try:
+        new_roster = load_roster_from_upload(io.BytesIO(content))
+        count = upsert_students(conn, new_roster)
+        ensure_database_synced(conn, force=True)
+        return {"message": f"{count} öğrenci kaydı güncellendi.", "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"CSV işleme hatası: {str(e)}")
 
 
 @router.get("/{project_name}", response_model=ProjectDetail)

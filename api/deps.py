@@ -75,7 +75,7 @@ def get_current_user(
         )
     row = conn.execute(
         "SELECT * FROM auth_users WHERE lower(user_id) = lower(?) AND role = ? AND is_active = 1",
-        (user_id, role),
+        (str(user_id), str(role)),
     ).fetchone()
     if not row:
         raise HTTPException(

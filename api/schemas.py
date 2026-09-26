@@ -83,6 +83,18 @@ class AssignRoleRequest(BaseModel):
     responsibility: Optional[str] = Field(default="", max_length=500)
 
 
+class AddStudentRequest(BaseModel):
+    student_no: str = Field(min_length=1, max_length=50)
+    student_name: str = Field(min_length=1, max_length=200)
+    project_name: str = Field(min_length=1, max_length=200)
+    program: Optional[str] = Field(default="", max_length=200)
+
+
+class ResetPasswordToDefaultRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=100)
+    role: str = Field(min_length=1, max_length=50)
+
+
 # ── Tasks & Milestones ────────────────────────────────────────────────────────
 
 class TaskResponse(BaseModel):

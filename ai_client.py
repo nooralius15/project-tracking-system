@@ -106,7 +106,7 @@ class BaseAIProvider(abc.ABC):
 class GeminiProvider(BaseAIProvider):
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = (api_key or get_ai_secret("GEMINI_API_KEY") or get_ai_secret("GOOGLE_API_KEY") or GEMINI_API_KEY).strip()
-        self.model = (model or get_ai_secret("GEMINI_MODEL") or GEMINI_MODEL or "gemini-1.5-flash").strip()
+        self.model = (model or get_ai_secret("GEMINI_MODEL") or GEMINI_MODEL or "gemini-3.8-flash").strip()
 
     def is_available(self) -> bool:
         return bool(self.api_key)

@@ -5,15 +5,41 @@ Tests authentication, authorization, project listings, task mutations, and IDOR 
 """
 from __future__ import annotations
 
+from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from constants import DB_PATH, DEFAULT_PASSWORD
+from db import get_conn
+from models import (
+    ensure_database_synced,
+    load_roster,
+    student_count,
+    update_password,
+    upsert_students,
+)
 from server import app
-from constants import DEFAULT_PASSWORD
 
 
 @pytest.fixture(scope="module")
 def client():
+    conn = get_conn(DB_PATH)
+    example_csv = Path(__file__).resolve().parent.parent / "ogr.example.csv"
+    if student_count(conn) == 0 and example_csv.exists():
+        roster = load_roster(str(example_csv))
+        upsert_students(conn, roster)
+        ensure_database_synced(conn, force=True)
+
+    test_accounts = [
+        ("Dr. UFUK ASIL", "advisor", "password123"),
+        ("Dr. Ahmet Demir", "advisor", "password123"),
+        ("210208001", "student", "password123"),
+        ("210208002", "student", "password123"),
+        ("210208004", "student", "12345"),
+    ]
+    for user_id, role, pwd in test_accounts:
+        update_password(conn, user_id, role, pwd)
+
     with TestClient(app) as test_client:
         yield test_client
 

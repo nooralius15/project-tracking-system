@@ -23,7 +23,7 @@ from api.tasks import router as tasks_router
 from api.weekly import router as weekly_router
 from constants import DB_PATH, UPLOADS_DIR
 from db import get_conn
-from models import ensure_database_synced
+from models import ensure_database_synced, load_roster, student_count, upsert_students
 
 SERVER_START_TIME = datetime.datetime.now(datetime.timezone.utc)
 
@@ -32,7 +32,12 @@ SERVER_START_TIME = datetime.datetime.now(datetime.timezone.utc)
 async def lifespan(app: FastAPI):
     # Startup: ensure database schema and tables exist
     conn = get_conn(DB_PATH)
-    ensure_database_synced(conn)
+    if student_count(conn) == 0:
+        example_csv = Path(__file__).parent / "ogr.example.csv"
+        if example_csv.exists():
+            roster = load_roster(str(example_csv))
+            upsert_students(conn, roster)
+    ensure_database_synced(conn, force=True)
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
